@@ -121,18 +121,26 @@ impl Popup {
                 let old_brush = SelectObject(hdc, graph_brush);
                 let old_pen = SelectObject(hdc, null_pen);
 
+                // Graph Layout:
+                // Window Height: 140
+                // Download Text: y=12..50
+                // Graph: y=50..110 (Height 60)
+                // Upload Text: y=115..135
+
+                let graph_baseline = 110;
+                let graph_height = 60.0;
+
                 let mut points = Vec::with_capacity(self.history.len() + 2);
-                points.push(POINT { x: 0, y: height }); // Start bottom-left
+                points.push(POINT { x: 0, y: graph_baseline }); // Start bottom-left of graph area
 
                 for (i, &val) in self.history.iter().enumerate() {
                     let x = i as i32;
-                    // Scale height to fit in bottom 60px
-                    let h = (((val as f64) / (max_val as f64)) * 60.0) as i32;
-                    let y = height - h;
+                    let h = (((val as f64) / (max_val as f64)) * graph_height) as i32;
+                    let y = graph_baseline - h;
                     points.push(POINT { x, y });
                 }
 
-                points.push(POINT { x: self.history.len() as i32, y: height }); // End bottom-right
+                points.push(POINT { x: self.history.len() as i32, y: graph_baseline }); // End bottom-right of graph area
 
                 Polygon(hdc, &points);
 
@@ -163,7 +171,7 @@ impl Popup {
                     windows::core::PCWSTR::from_raw(wide_string("Segoe UI").as_ptr())
                 );
                 let old_font = SelectObject(hdc, hfont_label);
-                TextOutW(hdc, 16, 12, &wide_string("↓ Download"));
+                TextOutW(hdc, 16, 12, &wide_string("↓ DOWNLOAD"));
 
                 // 2. Download Value
                 SetTextColor(hdc, COLORREF(0x00ffffff)); // White
@@ -186,13 +194,13 @@ impl Popup {
                 SelectObject(hdc, hfont_val);
                 TextOutW(hdc, 16, 30, &wide_string(&format_speed_full(down_bps)));
 
-                // 3. Upload Section (Bottom Left)
+                // 3. Upload Section (Bottom, below graph)
                 SetTextColor(hdc, COLORREF(0x00aaaaaa)); // Gray
                 SelectObject(hdc, hfont_label);
-                TextOutW(hdc, 16, height - 30, &wide_string("↑ Upload"));
+                TextOutW(hdc, 16, 115, &wide_string("↑ UPLOAD"));
 
                 SetTextColor(hdc, COLORREF(0x00ffffff)); // White
-                TextOutW(hdc, 80, height - 30, &wide_string(&format_speed_full(up_bps)));
+                TextOutW(hdc, 95, 115, &wide_string(&format_speed_full(up_bps)));
 
                 SelectObject(hdc, old_font);
                 DeleteObject(hfont_label);
