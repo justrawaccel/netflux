@@ -1,4 +1,4 @@
-use windows::Win32::Foundation::{HWND, SIZE};
+use windows::Win32::Foundation::{ HWND, SIZE };
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC,
     CreateFontW,
@@ -10,6 +10,7 @@ use windows::Win32::Graphics::Gdi::{
     TextOutW,
     TRANSPARENT,
     FW_BOLD,
+    FW_SEMIBOLD,
     ANSI_CHARSET,
     OUT_DEFAULT_PRECIS,
     CLIP_DEFAULT_PRECIS,
@@ -21,10 +22,14 @@ use windows::Win32::Graphics::Gdi::{
     BI_RGB,
     DIB_RGB_COLORS,
     GetTextExtentPoint32W,
+    RoundRect,
+    CreateSolidBrush,
+    CreatePen,
+    PS_NULL,
 };
 use std::ffi::c_void;
 use std::collections::VecDeque;
-use crate::format::format_speed;
+use crate::format::{ get_speed_parts, get_speed_color };
 
 pub struct IconGenerator {
     history: VecDeque<u64>,
@@ -85,44 +90,60 @@ impl IconGenerator {
 
             let old_bmp = SelectObject(hdc_mem, hbitmap);
 
+            // Clear background (transparent)
             std::ptr::write_bytes(bits, 0, (width * height * 4) as usize);
 
-            // Draw Graph directly on pixels
-            let pixels = std::slice::from_raw_parts_mut(
-                bits as *mut u32,
-                (width * height) as usize
-            );
+            // Draw Rounded Background
+            let bg_brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x00111111));
+            let pen = CreatePen(PS_NULL, 0, windows::Win32::Foundation::COLORREF(0));
+            let old_brush = SelectObject(hdc_mem, bg_brush);
+            let old_pen = SelectObject(hdc_mem, pen);
 
-            // Draw history graph
-            for (i, &val) in self.history.iter().enumerate() {
-                if i >= (width as usize) {
-                    break;
-                }
+            RoundRect(hdc_mem, 0, 0, width, height, 6, 6);
 
-                let bar_height = (
-                    ((val as f64) / (max_speed as f64)) *
-                    (height as f64)
-                ).ceil() as i32;
-                let bar_height = bar_height.clamp(0, height);
-
-                for y in height - bar_height..height {
-                    let idx = (y * width + (i as i32)) as usize;
-                    if idx < pixels.len() {
-                        // Greenish color for graph: 0xAA4CAF50 (ARGB)
-                        // GDI uses BGRA in memory usually, but let's check.
-                        // 0xAARRGGBB -> 0xAA50AF4C (Little Endian u32)
-                        // Let's use a solid color for now, we fix alpha later.
-                        // 0x00FF00 (Green)
-                        pixels[idx] = 0x0000ff00;
-                    }
-                }
-            }
+            SelectObject(hdc_mem, old_brush);
+            SelectObject(hdc_mem, old_pen);
+            DeleteObject(bg_brush);
+            DeleteObject(pen);
 
             SetBkMode(hdc_mem, TRANSPARENT);
-            SetTextColor(hdc_mem, windows::Win32::Foundation::COLORREF(0x00ffffff));
 
-            let hfont = CreateFontW(
-                -11,
+            let (val_str, unit_str) = get_speed_parts(speed);
+            let color_ref = get_speed_color(speed);
+            SetTextColor(hdc_mem, windows::Win32::Foundation::COLORREF(color_ref));
+
+            // Draw Value (Top, Large)
+            let hfont_val = CreateFontW(
+                -15,
+                0,
+                0,
+                0,
+                FW_SEMIBOLD.0 as i32,
+                0,
+                0,
+                0,
+                ANSI_CHARSET.0 as u32,
+                OUT_DEFAULT_PRECIS.0 as u32,
+                CLIP_DEFAULT_PRECIS.0 as u32,
+                DEFAULT_QUALITY.0 as u32,
+                FF_DONTCARE.0 as u32,
+                windows::core::PCWSTR::from_raw(wide_string("Segoe UI").as_ptr())
+            );
+            let old_font = SelectObject(hdc_mem, hfont_val);
+
+            let w_val = wide_string(&val_str);
+            let mut size_val = SIZE::default();
+            GetTextExtentPoint32W(hdc_mem, &w_val, &mut size_val);
+            let x_val = (width - size_val.cx) / 2;
+            let y_val = -1; // Slightly up
+            TextOutW(hdc_mem, x_val, y_val, &w_val);
+
+            SelectObject(hdc_mem, old_font);
+            DeleteObject(hfont_val);
+
+            // Draw Unit (Bottom, Small)
+            let hfont_unit = CreateFontW(
+                -10,
                 0,
                 0,
                 0,
@@ -137,23 +158,28 @@ impl IconGenerator {
                 FF_DONTCARE.0 as u32,
                 windows::core::PCWSTR::from_raw(wide_string("Segoe UI").as_ptr())
             );
-            let old_font = SelectObject(hdc_mem, hfont);
+            SelectObject(hdc_mem, hfont_unit);
 
-            let text = format_speed(speed);
-            let w_text = wide_string(&text);
+            let w_unit = wide_string(&unit_str);
+            let mut size_unit = SIZE::default();
+            GetTextExtentPoint32W(hdc_mem, &w_unit, &mut size_unit);
+            let x_unit = (width - size_unit.cx) / 2;
+            let y_unit = 16;
+            TextOutW(hdc_mem, x_unit, y_unit, &w_unit);
 
-            // Measure text to center it
-            let mut size = SIZE::default();
-            GetTextExtentPoint32W(hdc_mem, &w_text, &mut size);
-            let x = (width - size.cx) / 2;
-            let y = (height - size.cy) / 2 - 2; // Slightly higher
+            SelectObject(hdc_mem, old_font);
+            DeleteObject(hfont_unit);
 
-            TextOutW(hdc_mem, x, y, &w_text);
+            // Fix Alpha channel
+            // We drew a rounded rect on transparent background.
+            // The pixels inside the rect are 0x00111111 (if we ignore alpha for a sec).
+            // Text is drawn on top.
+            // We need to set alpha to 255 for all non-transparent pixels.
 
             let pixel_count = (width * height) as usize;
             let pixels = std::slice::from_raw_parts_mut(bits as *mut u32, pixel_count);
             for p in pixels.iter_mut() {
-                if (*p & 0x00ffffff) != 0 {
+                if *p != 0 {
                     *p |= 0xff000000;
                 }
             }
@@ -170,8 +196,6 @@ impl IconGenerator {
                 rgba.push(a);
             }
 
-            SelectObject(hdc_mem, old_font);
-            DeleteObject(hfont);
             SelectObject(hdc_mem, old_bmp);
             DeleteObject(hbitmap);
             DeleteDC(hdc_mem);
