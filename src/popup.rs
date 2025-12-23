@@ -24,7 +24,9 @@ use windows::Win32::Graphics::Gdi::{
     FrameRect,
     CreatePen,
     PS_NULL,
+    PS_SOLID,
     Polygon,
+    Polyline,
 };
 use crate::format::{ format_speed_full, get_speed_color };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -38,7 +40,8 @@ use std::collections::VecDeque;
 pub struct Popup {
     window: Window,
     text: String,
-    history: VecDeque<u64>,
+    down_history: VecDeque<u64>,
+    up_history: VecDeque<u64>,
 }
 
 impl Popup {
@@ -57,7 +60,8 @@ impl Popup {
         Self {
             window,
             text: String::new(),
-            history: VecDeque::with_capacity(240),
+            down_history: VecDeque::with_capacity(240),
+            up_history: VecDeque::with_capacity(240),
         }
     }
 
@@ -74,10 +78,16 @@ impl Popup {
     pub fn update(&mut self, down: u64, up: u64, _text: String) {
         // We construct the text inside draw() now
         self.text = format!("{}\n{}", down, up);
-        if self.history.len() >= 240 {
-            self.history.pop_front();
+        
+        if self.down_history.len() >= 240 {
+            self.down_history.pop_front();
         }
-        self.history.push_back(down);
+        self.down_history.push_back(down);
+
+        if self.up_history.len() >= 240 {
+            self.up_history.pop_front();
+        }
+        self.up_history.push_back(up);
 
         if self.window.is_visible().unwrap_or(false) {
             self.window.request_redraw();
@@ -108,46 +118,50 @@ impl Popup {
                 let down_bps = parts.get(0).unwrap_or(&"0").parse::<u64>().unwrap_or(0);
                 let up_bps = parts.get(1).unwrap_or(&"0").parse::<u64>().unwrap_or(0);
 
-                // Draw Graph (Filled Polygon)
-                let max_val = *self.history.iter().max().unwrap_or(&1);
+// Draw Graph (Lines)
+                let max_down = *self.down_history.iter().max().unwrap_or(&1);
+                let max_up = *self.up_history.iter().max().unwrap_or(&1);
+                let max_val = std::cmp::max(max_down, max_up);
                 let max_val = if max_val == 0 { 1 } else { max_val };
-
-                // Graph Color: Download -> Green (#22C55E -> 0x005EC522)
-                let graph_brush = CreateSolidBrush(
-                    windows::Win32::Foundation::COLORREF(0x005ec522)
-                );
-                let null_pen = CreatePen(PS_NULL, 0, windows::Win32::Foundation::COLORREF(0));
-
-                let old_brush = SelectObject(hdc, graph_brush);
-                let old_pen = SelectObject(hdc, null_pen);
-
-                // Graph Layout:
-                // Window Height: 140
-                // Download Text: y=12..50
-                // Graph: y=50..110 (Height 60)
-                // Upload Text: y=115..135
 
                 let graph_baseline = 110;
                 let graph_height = 60.0;
 
-                let mut points = Vec::with_capacity(self.history.len() + 2);
-                points.push(POINT { x: 0, y: graph_baseline }); // Start bottom-left of graph area
+                // 1. Draw Download Line (Green: #22C55E -> 0x005EC522)
+                let down_pen = CreatePen(PS_SOLID, 1, windows::Win32::Foundation::COLORREF(0x005ec522));
+                let old_pen = SelectObject(hdc, down_pen);
 
-                for (i, &val) in self.history.iter().enumerate() {
+                let mut points = Vec::with_capacity(self.down_history.len());
+                for (i, &val) in self.down_history.iter().enumerate() {
                     let x = i as i32;
                     let h = (((val as f64) / (max_val as f64)) * graph_height) as i32;
                     let y = graph_baseline - h;
                     points.push(POINT { x, y });
                 }
-
-                points.push(POINT { x: self.history.len() as i32, y: graph_baseline }); // End bottom-right of graph area
-
-                Polygon(hdc, &points);
-
-                SelectObject(hdc, old_brush);
+                if !points.is_empty() {
+                    Polyline(hdc, &points);
+                }
+                
                 SelectObject(hdc, old_pen);
-                DeleteObject(graph_brush);
-                DeleteObject(null_pen);
+                DeleteObject(down_pen);
+
+                // 2. Draw Upload Line (Pink/Purple: #FF55FF -> 0x00FF55FF)
+                let up_pen = CreatePen(PS_SOLID, 1, windows::Win32::Foundation::COLORREF(0x00FF55FF));
+                let old_pen = SelectObject(hdc, up_pen);
+
+                let mut points = Vec::with_capacity(self.up_history.len());
+                for (i, &val) in self.up_history.iter().enumerate() {
+                    let x = i as i32;
+                    let h = (((val as f64) / (max_val as f64)) * graph_height) as i32;
+                    let y = graph_baseline - h;
+                    points.push(POINT { x, y });
+                }
+                if !points.is_empty() {
+                    Polyline(hdc, &points);
+                }
+
+                SelectObject(hdc, old_pen);
+                DeleteObject(up_pen);
 
                 // Draw Text
                 SetBkMode(hdc, TRANSPARENT);

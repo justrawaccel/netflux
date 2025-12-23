@@ -109,13 +109,30 @@ impl IconGenerator {
 
             SetBkMode(hdc_mem, TRANSPARENT);
 
-            let (val_str, unit_str) = get_speed_parts(speed);
+            // Custom formatting for Icon (Integer only, max 3 digits)
+            let (val_str, unit_str) = if speed < 1024 {
+                (speed.to_string(), "B".to_string())
+            } else if speed < 1024 * 1024 {
+                ((speed / 1024).to_string(), "KB".to_string())
+            } else if speed < 1024 * 1024 * 1024 {
+                ((speed / (1024 * 1024)).to_string(), "MB".to_string())
+            } else {
+                ((speed / (1024 * 1024 * 1024)).to_string(), "GB".to_string())
+            };
+
             let color_ref = get_speed_color(speed);
             SetTextColor(hdc_mem, windows::Win32::Foundation::COLORREF(color_ref));
 
+            // Dynamic Font Size based on length
+            let font_height = match val_str.len() {
+                1 => -22,
+                2 => -18,
+                _ => -14,
+            };
+
             // Draw Value (Top, Large)
             let hfont_val = CreateFontW(
-                -16, // Slightly larger
+                font_height,
                 0,
                 0,
                 0,
@@ -136,7 +153,13 @@ impl IconGenerator {
             let mut size_val = SIZE::default();
             GetTextExtentPoint32W(hdc_mem, &w_val, &mut size_val);
             let x_val = (width - size_val.cx) / 2;
-            let y_val = -2; // Slightly up
+            
+            // Adjust Y based on font size
+            let y_val = match val_str.len() {
+                1 => -5,
+                2 => -3,
+                _ => -1,
+            };
             TextOutW(hdc_mem, x_val, y_val, &w_val);
 
             SelectObject(hdc_mem, old_font);
