@@ -28,4 +28,7 @@ Desktop.ini
 node_modules/
 package-lock.json
 
+# Generated icons
+assets/icon.ico
+
 node_modules/

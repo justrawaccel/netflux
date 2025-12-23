@@ -9,6 +9,9 @@ repository = "https://github.com/justrawaccel/netflux"
 keywords = ["windows", "network", "monitor", "tray", "gdi"]
 categories = ["network-programming", "gui"]
 
+[build-dependencies]
+winres = "0.1"
+
 [dependencies]
 tray-icon = "0.19.0"
 winit = "0.29"
