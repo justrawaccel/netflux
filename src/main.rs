@@ -36,8 +36,8 @@ fn main() {
     let quit_i = MenuItem::new("Exit", true, None);
     tray_menu.append(&quit_i).unwrap();
 
-    let icon_gen = IconGenerator::new();
-    let icon = icon_gen.generate("...").unwrap();
+    let mut icon_gen = IconGenerator::new();
+    let icon = icon_gen.generate(0).unwrap();
 
     let mut tray_icon = Some(
         TrayIconBuilder::new()
@@ -76,8 +76,7 @@ fn main() {
             match event {
                 Event::UserEvent(UserEvent::Tick) => {
                     if let Some(stats) = net_monitor.tick() {
-                        let label = format_speed(stats.down_bps);
-                        if let Ok(new_icon) = icon_gen.generate(&label) {
+                        if let Ok(new_icon) = icon_gen.generate(stats.down_bps) {
                             if let Some(tray) = &mut tray_icon {
                                 let _ = tray.set_icon(Some(new_icon));
                                 let tooltip = format!(
@@ -95,7 +94,7 @@ fn main() {
                             format_speed_full(stats.down_bps),
                             format_speed_full(stats.up_bps)
                         );
-                        popup.update_text(popup_text);
+                        popup.update(stats.down_bps, stats.up_bps, popup_text);
                     }
                 }
                 Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => {

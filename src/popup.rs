@@ -21,6 +21,10 @@ use windows::Win32::Graphics::Gdi::{
     CreateSolidBrush,
     FillRect,
     FrameRect,
+    MoveToEx,
+    LineTo,
+    CreatePen,
+    PS_SOLID,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     SystemParametersInfoW,
@@ -28,10 +32,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SPIF_SENDCHANGE,
 };
 use raw_window_handle::{ HasWindowHandle, RawWindowHandle };
+use std::collections::VecDeque;
 
 pub struct Popup {
     window: Window,
     text: String,
+    history: VecDeque<u64>,
 }
 
 impl Popup {
@@ -50,6 +56,7 @@ impl Popup {
         Self {
             window,
             text: String::new(),
+            history: VecDeque::with_capacity(60),
         }
     }
 
@@ -63,8 +70,13 @@ impl Popup {
         }
     }
 
-    pub fn update_text(&mut self, text: String) {
+    pub fn update(&mut self, down: u64, _up: u64, text: String) {
         self.text = text;
+        if self.history.len() >= 220 {
+            self.history.pop_front();
+        }
+        self.history.push_back(down);
+
         if self.window.is_visible().unwrap_or(false) {
             self.window.request_redraw();
         }
@@ -80,12 +92,35 @@ impl Popup {
                 let bg_color = COLORREF(0x001e1e1e);
                 let text_color = COLORREF(0x00f0f0f0);
                 let border_color = COLORREF(0x00444444);
+                let graph_color = COLORREF(0x0050af4c);
 
                 let rect = RECT { left: 0, top: 0, right: 220, bottom: 110 };
 
                 let bg_brush = CreateSolidBrush(bg_color);
                 FillRect(hdc, &rect, bg_brush);
                 DeleteObject(bg_brush);
+
+                // Draw Graph
+                let max_val = *self.history.iter().max().unwrap_or(&1);
+                let max_val = if max_val == 0 { 1 } else { max_val };
+
+                let pen = CreatePen(PS_SOLID, 1, graph_color);
+                let old_pen = SelectObject(hdc, pen);
+
+                for (i, &val) in self.history.iter().enumerate() {
+                    let x = i as i32;
+                    let h = (((val as f64) / (max_val as f64)) * 50.0) as i32;
+                    let y = 110 - h;
+
+                    if i == 0 {
+                        MoveToEx(hdc, x, y, None);
+                    } else {
+                        LineTo(hdc, x, y);
+                    }
+                }
+
+                SelectObject(hdc, old_pen);
+                DeleteObject(pen);
 
                 let border_brush = CreateSolidBrush(border_color);
                 FrameRect(hdc, &rect, border_brush);
@@ -95,7 +130,7 @@ impl Popup {
                 SetTextColor(hdc, text_color);
 
                 let hfont = CreateFontW(
-                    -18,
+                    -16,
                     0,
                     0,
                     0,

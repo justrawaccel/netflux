@@ -20,17 +20,33 @@ use windows::Win32::Graphics::Gdi::{
     BITMAPINFOHEADER,
     BI_RGB,
     DIB_RGB_COLORS,
+    GetTextExtentPoint32W,
+    SIZE,
 };
 use std::ffi::c_void;
+use std::collections::VecDeque;
+use crate::format::format_speed;
 
-pub struct IconGenerator {}
+pub struct IconGenerator {
+    history: VecDeque<u64>,
+}
 
 impl IconGenerator {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            history: VecDeque::with_capacity(32),
+        }
     }
 
-    pub fn generate(&self, text: &str) -> Result<tray_icon::Icon, String> {
+    pub fn generate(&mut self, speed: u64) -> Result<tray_icon::Icon, String> {
+        if self.history.len() >= 32 {
+            self.history.pop_front();
+        }
+        self.history.push_back(speed);
+
+        let max_speed = *self.history.iter().max().unwrap_or(&1);
+        let max_speed = if max_speed == 0 { 1 } else { max_speed };
+
         unsafe {
             let width = 32;
             let height = 32;
@@ -72,11 +88,42 @@ impl IconGenerator {
 
             std::ptr::write_bytes(bits, 0, (width * height * 4) as usize);
 
+            // Draw Graph directly on pixels
+            let pixels = std::slice::from_raw_parts_mut(
+                bits as *mut u32,
+                (width * height) as usize
+            );
+
+            // Draw history graph
+            for (i, &val) in self.history.iter().enumerate() {
+                if i >= (width as usize) {
+                    break;
+                }
+
+                let bar_height = (
+                    ((val as f64) / (max_speed as f64)) *
+                    (height as f64)
+                ).ceil() as i32;
+                let bar_height = bar_height.clamp(0, height);
+
+                for y in height - bar_height..height {
+                    let idx = (y * width + (i as i32)) as usize;
+                    if idx < pixels.len() {
+                        // Greenish color for graph: 0xAA4CAF50 (ARGB)
+                        // GDI uses BGRA in memory usually, but let's check.
+                        // 0xAARRGGBB -> 0xAA50AF4C (Little Endian u32)
+                        // Let's use a solid color for now, we fix alpha later.
+                        // 0x00FF00 (Green)
+                        pixels[idx] = 0x0000ff00;
+                    }
+                }
+            }
+
             SetBkMode(hdc_mem, TRANSPARENT);
             SetTextColor(hdc_mem, windows::Win32::Foundation::COLORREF(0x00ffffff));
 
             let hfont = CreateFontW(
-                -22,
+                -11,
                 0,
                 0,
                 0,
@@ -93,8 +140,16 @@ impl IconGenerator {
             );
             let old_font = SelectObject(hdc_mem, hfont);
 
-            let w_text = wide_string(text);
-            TextOutW(hdc_mem, 0, 4, &w_text);
+            let text = format_speed(speed);
+            let w_text = wide_string(&text);
+
+            // Measure text to center it
+            let mut size = SIZE::default();
+            GetTextExtentPoint32W(hdc_mem, &w_text, &mut size);
+            let x = (width - size.cx) / 2;
+            let y = (height - size.cy) / 2 - 2; // Slightly higher
+
+            TextOutW(hdc_mem, x, y, &w_text);
 
             let pixel_count = (width * height) as usize;
             let pixels = std::slice::from_raw_parts_mut(bits as *mut u32, pixel_count);
