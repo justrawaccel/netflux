@@ -1,0 +1,15 @@
+{
+	"useTabs": true,
+	"tabWidth": 2,
+	"printWidth": 100,
+	"endOfLine": "lf",
+	"plugins": ["./node_modules/prettier-plugin-rust"],
+	"overrides": [
+		{
+			"files": ["tests/*.rs"],
+			"options": {
+				"printWidth": 80
+			}
+		}
+	]
+}
