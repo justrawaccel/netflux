@@ -4,9 +4,9 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Rust](https://img.shields.io/badge/built_with-Rust-orange)
 
-**NetFlux** is a lightweight, high-performance network speed monitor for Windows 11/10 that lives in your System Tray. It provides real-time download/upload statistics with minimal resource usage, built using native Windows GDI and Rust.
-
 ![NetFlux Preview](assets/preview/screen.png)
+
+**NetFlux** is a lightweight, high-performance network speed monitor for Windows 11/10 that lives in your System Tray. It provides real-time download/upload statistics with minimal resource usage, built using native Windows GDI and Rust.
 
 ## ✨ Features
 
