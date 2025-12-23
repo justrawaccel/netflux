@@ -50,6 +50,10 @@ impl IconGenerator {
 
             let hdc_screen = windows::Win32::Graphics::Gdi::GetDC(HWND(std::ptr::null_mut()));
             let hdc_mem = CreateCompatibleDC(hdc_screen);
+            if hdc_mem.is_invalid() {
+                return Err("CreateCompatibleDC failed".to_string());
+            }
+
             let mut bits: *mut c_void = std::ptr::null_mut();
             let hbitmap = CreateDIBSection(
                 hdc_mem,
@@ -59,6 +63,10 @@ impl IconGenerator {
                 None,
                 0
             ).map_err(|e| e.to_string())?;
+
+            if bits.is_null() {
+                return Err("CreateDIBSection returned null bits".to_string());
+            }
 
             let old_bmp = SelectObject(hdc_mem, hbitmap);
 
@@ -96,13 +104,6 @@ impl IconGenerator {
                 }
             }
 
-            SelectObject(hdc_mem, old_font);
-            DeleteObject(hfont);
-            SelectObject(hdc_mem, old_bmp);
-            DeleteObject(hbitmap);
-            DeleteDC(hdc_mem);
-            windows::Win32::Graphics::Gdi::ReleaseDC(HWND(std::ptr::null_mut()), hdc_screen);
-
             let mut rgba = Vec::with_capacity(pixel_count * 4);
             for p in pixels.iter() {
                 let a = (*p >> 24) as u8;
@@ -114,6 +115,13 @@ impl IconGenerator {
                 rgba.push(b);
                 rgba.push(a);
             }
+
+            SelectObject(hdc_mem, old_font);
+            DeleteObject(hfont);
+            SelectObject(hdc_mem, old_bmp);
+            DeleteObject(hbitmap);
+            DeleteDC(hdc_mem);
+            windows::Win32::Graphics::Gdi::ReleaseDC(HWND(std::ptr::null_mut()), hdc_screen);
 
             tray_icon::Icon::from_rgba(rgba, width as u32, height as u32).map_err(|e| e.to_string())
         }

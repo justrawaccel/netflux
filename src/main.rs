@@ -22,6 +22,7 @@ enum UserEvent {
 
 fn main() {
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build().unwrap();
+
     let proxy = event_loop.create_proxy();
 
     thread::spawn(move || {

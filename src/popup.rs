@@ -81,7 +81,7 @@ impl Popup {
                 let text_color = COLORREF(0x00f0f0f0);
                 let border_color = COLORREF(0x00444444);
 
-                let mut rect = RECT { left: 0, top: 0, right: 220, bottom: 110 };
+                let rect = RECT { left: 0, top: 0, right: 220, bottom: 110 };
 
                 let bg_brush = CreateSolidBrush(bg_color);
                 FillRect(hdc, &rect, bg_brush);
