@@ -8,7 +8,7 @@ mod popup;
 use std::time::Duration;
 use std::thread;
 use winit::event::{ Event, WindowEvent };
-use winit::event_loop::{ ControlFlow, EventLoopBuilder, EventLoopProxy };
+use winit::event_loop::{ ControlFlow, EventLoopBuilder };
 use tray_icon::{ TrayIconBuilder, menu::{ Menu, MenuItem }, TrayIconEvent };
 use crate::net::NetMonitor;
 use crate::icon::IconGenerator;
@@ -49,7 +49,6 @@ fn main() {
 
     let mut net_monitor = NetMonitor::new();
     let mut popup = Popup::new(&event_loop);
-    let mut last_stats_str = String::new();
 
     event_loop
         .run(move |event, elwt| {

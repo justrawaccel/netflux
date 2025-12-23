@@ -3,11 +3,9 @@ pub fn format_speed(bps: u64) -> String {
     const MB: u64 = 1024 * 1024;
 
     if bps < MB {
-        // < 1 MB/s -> ###K
         let k = (bps as f64) / (KB as f64);
         format!("{:.0}K", k)
     } else {
-        // >= 1 MB/s -> #.#M or ##M
         let m = (bps as f64) / (MB as f64);
         if m < 10.0 {
             format!("{:.1}M", m)

@@ -1,11 +1,12 @@
-use std::time::{ Duration, Instant };
+use std::time::Instant;
 use windows::Win32::NetworkManagement::IpHelper::{
     GetIfTable2,
     MIB_IF_ROW2,
     MIB_IF_TABLE2,
     FreeMibTable,
+    IF_TYPE_SOFTWARE_LOOPBACK,
 };
-use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
+use windows::Win32::NetworkManagement::Ndis::{ IfOperStatusUp, NET_LUID_LH };
 use windows::Win32::Foundation::NO_ERROR;
 
 pub struct NetStats {
@@ -15,7 +16,7 @@ pub struct NetStats {
 }
 
 struct InterfaceSnapshot {
-    luid: windows::Win32::NetworkManagement::Ndis::NET_LUID_LH,
+    luid: NET_LUID_LH,
     in_octets: u64,
     out_octets: u64,
     timestamp: Instant,
@@ -38,21 +39,13 @@ impl NetMonitor {
             }
             let table = &*table_ptr;
 
-            // Find the best interface (Up, not loopback, highest traffic or just first working one)
-            // For MVP, let's pick the one with the most traffic or just the first "Up" non-loopback.
-            // A simple heuristic: pick the interface that is Up and has the highest total bytes (in + out).
-
             let mut best_iface: Option<&MIB_IF_ROW2> = None;
             let mut max_bytes = 0;
 
             let rows = std::slice::from_raw_parts(table.Table.as_ptr(), table.NumEntries as usize);
 
             for row in rows {
-                if
-                    row.OperStatus == IfOperStatusUp &&
-                    row.Type !=
-                        windows::Win32::NetworkManagement::IpHelper::IF_TYPE_SOFTWARE_LOOPBACK
-                {
+                if row.OperStatus == IfOperStatusUp && row.Type != IF_TYPE_SOFTWARE_LOOPBACK {
                     let total = row.InOctets + row.OutOctets;
                     if total > max_bytes {
                         max_bytes = total;
@@ -75,7 +68,6 @@ impl NetMonitor {
                             let up = ((current_out.saturating_sub(last.out_octets) as f64) /
                                 dt) as u64;
 
-                            // Convert wide string name to String
                             let name = String::from_utf16_lossy(&row.Alias)
                                 .trim_matches(char::from(0))
                                 .to_string();
@@ -107,7 +99,7 @@ impl NetMonitor {
                 None
             };
 
-            FreeMibTable(table_ptr);
+            FreeMibTable(table_ptr as *const _);
             result
         }
     }

@@ -1,7 +1,7 @@
-use winit::window::{ Window, WindowBuilder };
-use winit::event_loop::EventLoop;
+use winit::window::{ Window, WindowBuilder, WindowLevel };
+use winit::event_loop::EventLoopWindowTarget;
 use winit::platform::windows::WindowBuilderExtWindows;
-use windows::Win32::Foundation::{ HWND, RECT, POINT };
+use windows::Win32::Foundation::{ HWND, RECT, COLORREF };
 use windows::Win32::Graphics::Gdi::{
     GetDC,
     ReleaseDC,
@@ -18,15 +18,11 @@ use windows::Win32::Graphics::Gdi::{
     DEFAULT_QUALITY,
     FF_DONTCARE,
     DeleteObject,
-    InvalidateRect,
+    CreateSolidBrush,
+    FillRect,
+    FrameRect,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics,
-    SM_CXSCREEN,
-    SM_CYSCREEN,
-    SW_HIDE,
-    SW_SHOW,
-    ShowWindow,
     SystemParametersInfoW,
     SPI_GETWORKAREA,
     SPIF_SENDCHANGE,
@@ -39,15 +35,15 @@ pub struct Popup {
 }
 
 impl Popup {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
+    pub fn new<T>(event_loop: &EventLoopWindowTarget<T>) -> Self {
         let window = WindowBuilder::new()
             .with_title("NetFlux Popup")
             .with_decorations(false)
-            .with_always_on_top(true)
+            .with_window_level(WindowLevel::AlwaysOnTop)
             .with_skip_taskbar(true)
             .with_resizable(false)
-            .with_inner_size(winit::dpi::LogicalSize::new(200.0, 100.0))
-            .with_visible(false) // Start hidden
+            .with_inner_size(winit::dpi::LogicalSize::new(220.0, 110.0))
+            .with_visible(false)
             .build(event_loop)
             .expect("Failed to create popup window");
 
@@ -81,23 +77,25 @@ impl Popup {
             unsafe {
                 let hdc = GetDC(hwnd);
 
-                // Clear background (simple fill)
-                let mut rect = RECT { left: 0, top: 0, right: 200, bottom: 100 };
-                windows::Win32::Graphics::Gdi::FillRect(
-                    hdc,
-                    &rect,
-                    windows::Win32::Graphics::Gdi::HBRUSH(
-                        windows::Win32::Graphics::Gdi::GetStockObject(
-                            windows::Win32::Graphics::Gdi::WHITE_BRUSH
-                        ).0
-                    )
-                );
+                let bg_color = COLORREF(0x001e1e1e);
+                let text_color = COLORREF(0x00f0f0f0);
+                let border_color = COLORREF(0x00444444);
+
+                let mut rect = RECT { left: 0, top: 0, right: 220, bottom: 110 };
+
+                let bg_brush = CreateSolidBrush(bg_color);
+                FillRect(hdc, &rect, bg_brush);
+                DeleteObject(bg_brush);
+
+                let border_brush = CreateSolidBrush(border_color);
+                FrameRect(hdc, &rect, border_brush);
+                DeleteObject(border_brush);
 
                 SetBkMode(hdc, TRANSPARENT);
-                SetTextColor(hdc, windows::Win32::Foundation::COLORREF(0x00000000)); // Black text
+                SetTextColor(hdc, text_color);
 
                 let hfont = CreateFontW(
-                    -16,
+                    -18,
                     0,
                     0,
                     0,
@@ -105,11 +103,11 @@ impl Popup {
                     0,
                     0,
                     0,
-                    ANSI_CHARSET,
-                    OUT_DEFAULT_PRECIS,
-                    CLIP_DEFAULT_PRECIS,
-                    DEFAULT_QUALITY,
-                    FF_DONTCARE,
+                    ANSI_CHARSET.0 as u32,
+                    OUT_DEFAULT_PRECIS.0 as u32,
+                    CLIP_DEFAULT_PRECIS.0 as u32,
+                    DEFAULT_QUALITY.0 as u32,
+                    FF_DONTCARE.0 as u32,
                     windows::core::PCWSTR::from_raw(wide_string("Segoe UI").as_ptr())
                 );
                 let old_font = SelectObject(hdc, hfont);
@@ -117,7 +115,7 @@ impl Popup {
                 let lines: Vec<&str> = self.text.split('\n').collect();
                 for (i, line) in lines.iter().enumerate() {
                     let w_line = wide_string(line);
-                    TextOutW(hdc, 10, 10 + (i as i32) * 20, &w_line);
+                    TextOutW(hdc, 15, 15 + (i as i32) * 24, &w_line);
                 }
 
                 SelectObject(hdc, old_font);
@@ -128,7 +126,6 @@ impl Popup {
     }
 
     fn reposition(&self) {
-        // Position bottom-right of work area
         unsafe {
             let mut rect = RECT::default();
             if
@@ -139,10 +136,10 @@ impl Popup {
                     SPIF_SENDCHANGE
                 ).is_ok()
             {
-                let width = 200;
-                let height = 100;
-                let x = rect.right - width - 10;
-                let y = rect.bottom - height - 10;
+                let width = 220;
+                let height = 110;
+                let x = rect.right - width - 12;
+                let y = rect.bottom - height - 12;
                 self.window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
             }
         }
