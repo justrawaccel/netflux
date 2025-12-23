@@ -13,7 +13,7 @@ use tray_icon::{ TrayIconBuilder, menu::{ Menu, MenuItem }, TrayIconEvent };
 use crate::net::NetMonitor;
 use crate::icon::IconGenerator;
 use crate::popup::Popup;
-use crate::format::{ format_speed, format_speed_full };
+use crate::format::format_speed_full;
 
 #[derive(Debug)]
 enum UserEvent {

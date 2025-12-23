@@ -1,4 +1,4 @@
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, SIZE};
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC,
     CreateFontW,
@@ -21,7 +21,6 @@ use windows::Win32::Graphics::Gdi::{
     BI_RGB,
     DIB_RGB_COLORS,
     GetTextExtentPoint32W,
-    SIZE,
 };
 use std::ffi::c_void;
 use std::collections::VecDeque;
