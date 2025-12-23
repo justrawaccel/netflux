@@ -5,6 +5,7 @@
 ![License](https://img.shields.io/github/license/justrawaccel/netflux)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Rust](https://img.shields.io/badge/built_with-Rust-orange)
+![Release](https://img.shields.io/github/v/release/justrawaccel/netflux?label=latest%20release)
 
 </div>
 
