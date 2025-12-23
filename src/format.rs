@@ -21,16 +21,16 @@ pub fn get_speed_parts(bps: u64) -> (String, String) {
     const GB: u64 = 1024 * 1024 * 1024;
 
     if bps < KB {
-        (format!("{}", bps), "B/s".to_string())
+        (format!("{}", bps), "B".to_string())
     } else if bps < MB {
         let val = (bps as f64) / (KB as f64);
-        (format!("{:.1}", val), "KB/s".to_string())
+        (format!("{:.1}", val), "K".to_string())
     } else if bps < GB {
         let val = (bps as f64) / (MB as f64);
-        (format!("{:.1}", val), "MB/s".to_string())
+        (format!("{:.1}", val), "M".to_string())
     } else {
         let val = (bps as f64) / (GB as f64);
-        (format!("{:.1}", val), "GB/s".to_string())
+        (format!("{:.1}", val), "G".to_string())
     }
 }
 
@@ -40,15 +40,13 @@ pub fn get_speed_color(bps: u64) -> u32 {
 
     // Colors in 0x00BBGGRR format
     if bps < 100 * KB {
-        0x00aaaaaa // Gray
-    } else if bps < 1 * MB {
-        0x0050af4c // Green
-    } else if bps < 10 * MB {
-        0x0000ff00 // Bright Green
-    } else if bps < 50 * MB {
-        0x0000ffff // Yellow (GDI: BBGGRR -> 00FFFF is Yellow? No. R=FF, G=FF, B=00 -> 0000FFFF)
+        0x00afa39c // Idle: #9CA3AF (Gray)
+    } else if bps < 5 * MB {
+        0x005ec522 // Load: #22C55E (Green)
+    } else if bps < 20 * MB {
+        0x0008b3ea // Active: #EAB308 (Yellow)
     } else {
-        0x000000ff // Red (R=FF, G=00, B=00 -> 000000FF)
+        0x004444ef // Peak: #EF4444 (Red)
     }
 }
 

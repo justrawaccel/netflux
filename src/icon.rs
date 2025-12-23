@@ -94,7 +94,8 @@ impl IconGenerator {
             std::ptr::write_bytes(bits, 0, (width * height * 4) as usize);
 
             // Draw Rounded Background
-            let bg_brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x00111111));
+            // Background: #0B0B0E -> 0x000E0B0B
+            let bg_brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x000e0b0b));
             let pen = CreatePen(PS_NULL, 0, windows::Win32::Foundation::COLORREF(0));
             let old_brush = SelectObject(hdc_mem, bg_brush);
             let old_pen = SelectObject(hdc_mem, pen);
@@ -114,7 +115,7 @@ impl IconGenerator {
 
             // Draw Value (Top, Large)
             let hfont_val = CreateFontW(
-                -15,
+                -16, // Slightly larger
                 0,
                 0,
                 0,
@@ -135,7 +136,7 @@ impl IconGenerator {
             let mut size_val = SIZE::default();
             GetTextExtentPoint32W(hdc_mem, &w_val, &mut size_val);
             let x_val = (width - size_val.cx) / 2;
-            let y_val = -1; // Slightly up
+            let y_val = -2; // Slightly up
             TextOutW(hdc_mem, x_val, y_val, &w_val);
 
             SelectObject(hdc_mem, old_font);
@@ -143,11 +144,11 @@ impl IconGenerator {
 
             // Draw Unit (Bottom, Small)
             let hfont_unit = CreateFontW(
-                -10,
+                -11,
                 0,
                 0,
                 0,
-                FW_BOLD.0 as i32,
+                0, // FW_REGULAR (0 or 400)
                 0,
                 0,
                 0,
@@ -164,7 +165,7 @@ impl IconGenerator {
             let mut size_unit = SIZE::default();
             GetTextExtentPoint32W(hdc_mem, &w_unit, &mut size_unit);
             let x_unit = (width - size_unit.cx) / 2;
-            let y_unit = 16;
+            let y_unit = 15;
             TextOutW(hdc_mem, x_unit, y_unit, &w_unit);
 
             SelectObject(hdc_mem, old_font);

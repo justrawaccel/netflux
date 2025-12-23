@@ -94,8 +94,8 @@ impl Popup {
                 let width = 240;
                 let height = 140;
 
-                let bg_color = COLORREF(0x00100f0f); // #0F0F10
-                let border_color = COLORREF(0x00333333);
+                // Background: #0B0B0E -> 0x000E0B0B
+                let bg_color = COLORREF(0x000e0b0b);
 
                 let rect = RECT { left: 0, top: 0, right: width, bottom: height };
 
@@ -112,10 +112,9 @@ impl Popup {
                 let max_val = *self.history.iter().max().unwrap_or(&1);
                 let max_val = if max_val == 0 { 1 } else { max_val };
 
-                // Graph Color based on speed
-                let graph_color_ref = get_speed_color(down_bps);
+                // Graph Color: Download -> Green (#22C55E -> 0x005EC522)
                 let graph_brush = CreateSolidBrush(
-                    windows::Win32::Foundation::COLORREF(graph_color_ref)
+                    windows::Win32::Foundation::COLORREF(0x005ec522)
                 );
                 let null_pen = CreatePen(PS_NULL, 0, windows::Win32::Foundation::COLORREF(0));
 
@@ -198,11 +197,6 @@ impl Popup {
                 SelectObject(hdc, old_font);
                 DeleteObject(hfont_label);
                 DeleteObject(hfont_val);
-
-                // Border
-                let border_brush = CreateSolidBrush(border_color);
-                FrameRect(hdc, &rect, border_brush);
-                DeleteObject(border_brush);
 
                 ReleaseDC(hwnd, hdc);
             }
