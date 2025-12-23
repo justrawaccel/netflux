@@ -9,10 +9,10 @@ use std::time::Duration;
 use std::thread;
 use winit::event::{ Event, WindowEvent };
 use winit::event_loop::{ ControlFlow, EventLoopBuilder };
-use tray_icon::{ TrayIconBuilder, menu::{ Menu, MenuItem }, TrayIconEvent };
+use tray_icon::{ TrayIconBuilder, menu::{ Menu, MenuItem, Submenu, CheckMenuItem }, TrayIconEvent };
 use crate::net::NetMonitor;
 use crate::icon::IconGenerator;
-use crate::popup::Popup;
+use crate::popup::{ Popup, PopupMode };
 use crate::format::format_speed_full;
 use windows::Win32::System::Registry::{
     RegCreateKeyExW,
@@ -44,6 +44,19 @@ fn main() {
     });
 
     let tray_menu = Menu::new();
+
+    let mode_menu = Submenu::new("View Mode", true);
+    let mode_all = CheckMenuItem::new("All", true, true, None);
+    let mode_down = CheckMenuItem::new("Download Only", true, false, None);
+    let mode_up = CheckMenuItem::new("Upload Only", true, false, None);
+
+    mode_menu.append(&mode_all).unwrap();
+    mode_menu.append(&mode_down).unwrap();
+    mode_menu.append(&mode_up).unwrap();
+
+    tray_menu.append(&mode_menu).unwrap();
+    // tray_menu.append(&MenuItem::new_separator()).unwrap(); // Separator not available in this version or syntax wrong
+
     let quit_i = MenuItem::new("Exit", true, None);
     tray_menu.append(&quit_i).unwrap();
 
@@ -81,6 +94,21 @@ fn main() {
                 if event.id == quit_i.id() {
                     tray_icon = None;
                     elwt.exit();
+                } else if event.id == mode_all.id() {
+                    let _ = mode_all.set_checked(true);
+                    let _ = mode_down.set_checked(false);
+                    let _ = mode_up.set_checked(false);
+                    popup.set_mode(PopupMode::All);
+                } else if event.id == mode_down.id() {
+                    let _ = mode_all.set_checked(false);
+                    let _ = mode_down.set_checked(true);
+                    let _ = mode_up.set_checked(false);
+                    popup.set_mode(PopupMode::DownloadOnly);
+                } else if event.id == mode_up.id() {
+                    let _ = mode_all.set_checked(false);
+                    let _ = mode_down.set_checked(false);
+                    let _ = mode_up.set_checked(true);
+                    popup.set_mode(PopupMode::UploadOnly);
                 }
             }
 
