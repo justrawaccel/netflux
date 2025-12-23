@@ -52,7 +52,7 @@ impl Popup {
             .with_window_level(WindowLevel::AlwaysOnTop)
             .with_skip_taskbar(true)
             .with_resizable(false)
-            .with_inner_size(winit::dpi::LogicalSize::new(240.0, 140.0))
+            .with_inner_size(winit::dpi::LogicalSize::new(240.0, 220.0))
             .with_visible(false)
             .build(event_loop)
             .expect("Failed to create popup window");
@@ -78,7 +78,7 @@ impl Popup {
     pub fn update(&mut self, down: u64, up: u64, _text: String) {
         // We construct the text inside draw() now
         self.text = format!("{}\n{}", down, up);
-        
+
         if self.down_history.len() >= 240 {
             self.down_history.pop_front();
         }
@@ -102,7 +102,7 @@ impl Popup {
                 let hdc = GetDC(hwnd);
 
                 let width = 240;
-                let height = 140;
+                let height = 220;
 
                 // Background: #0B0B0E -> 0x000E0B0B
                 let bg_color = COLORREF(0x000e0b0b);
@@ -118,56 +118,100 @@ impl Popup {
                 let down_bps = parts.get(0).unwrap_or(&"0").parse::<u64>().unwrap_or(0);
                 let up_bps = parts.get(1).unwrap_or(&"0").parse::<u64>().unwrap_or(0);
 
-// Draw Graph (Lines)
+                // --- DOWNLOAD SECTION (Top) ---
                 let max_down = *self.down_history.iter().max().unwrap_or(&1);
-                let max_up = *self.up_history.iter().max().unwrap_or(&1);
-                let max_val = std::cmp::max(max_down, max_up);
-                let max_val = if max_val == 0 { 1 } else { max_val };
+                let max_down = if max_down == 0 { 1 } else { max_down };
 
-                let graph_baseline = 110;
-                let graph_height = 60.0;
+                let down_baseline = 100;
+                let graph_height = 50.0;
 
-                // 1. Draw Download Line (Green: #22C55E -> 0x005EC522)
-                let down_pen = CreatePen(PS_SOLID, 1, windows::Win32::Foundation::COLORREF(0x005ec522));
-                let old_pen = SelectObject(hdc, down_pen);
+                // Fill (Shadow)
+                let down_fill_brush = CreateSolidBrush(COLORREF(0x001c390f)); // Dark Green
+                let null_pen = CreatePen(PS_NULL, 0, COLORREF(0));
+                let old_brush = SelectObject(hdc, down_fill_brush);
+                let old_pen = SelectObject(hdc, null_pen);
 
-                let mut points = Vec::with_capacity(self.down_history.len());
+                let mut points = Vec::with_capacity(self.down_history.len() + 2);
+                points.push(POINT { x: 0, y: down_baseline });
                 for (i, &val) in self.down_history.iter().enumerate() {
                     let x = i as i32;
-                    let h = (((val as f64) / (max_val as f64)) * graph_height) as i32;
-                    let y = graph_baseline - h;
+                    let h = (((val as f64) / (max_down as f64)) * graph_height) as i32;
+                    let y = down_baseline - h;
                     points.push(POINT { x, y });
                 }
-                if !points.is_empty() {
-                    Polyline(hdc, &points);
+                points.push(POINT { x: self.down_history.len() as i32, y: down_baseline });
+                Polygon(hdc, &points);
+
+                SelectObject(hdc, old_brush);
+                SelectObject(hdc, old_pen);
+                DeleteObject(down_fill_brush);
+                DeleteObject(null_pen);
+
+                // Line (Bright)
+                let down_pen = CreatePen(PS_SOLID, 2, COLORREF(0x005ec522)); // Bright Green
+                let old_pen = SelectObject(hdc, down_pen);
+                // Rebuild points without baseline anchors
+                let mut line_points = Vec::with_capacity(self.down_history.len());
+                for (i, &val) in self.down_history.iter().enumerate() {
+                    let x = i as i32;
+                    let h = (((val as f64) / (max_down as f64)) * graph_height) as i32;
+                    let y = down_baseline - h;
+                    line_points.push(POINT { x, y });
                 }
-                
+                if !line_points.is_empty() {
+                    Polyline(hdc, &line_points);
+                }
                 SelectObject(hdc, old_pen);
                 DeleteObject(down_pen);
 
-                // 2. Draw Upload Line (Pink/Purple: #FF55FF -> 0x00FF55FF)
-                let up_pen = CreatePen(PS_SOLID, 1, windows::Win32::Foundation::COLORREF(0x00FF55FF));
-                let old_pen = SelectObject(hdc, up_pen);
+                // --- UPLOAD SECTION (Bottom) ---
+                let max_up = *self.up_history.iter().max().unwrap_or(&1);
+                let max_up = if max_up == 0 { 1 } else { max_up };
 
-                let mut points = Vec::with_capacity(self.up_history.len());
+                let up_baseline = 210;
+
+                // Fill (Shadow)
+                let up_fill_brush = CreateSolidBrush(COLORREF(0x004a184a)); // Dark Pink
+                let null_pen = CreatePen(PS_NULL, 0, COLORREF(0));
+                let old_brush = SelectObject(hdc, up_fill_brush);
+                let old_pen = SelectObject(hdc, null_pen);
+
+                let mut points = Vec::with_capacity(self.up_history.len() + 2);
+                points.push(POINT { x: 0, y: up_baseline });
                 for (i, &val) in self.up_history.iter().enumerate() {
                     let x = i as i32;
-                    let h = (((val as f64) / (max_val as f64)) * graph_height) as i32;
-                    let y = graph_baseline - h;
+                    let h = (((val as f64) / (max_up as f64)) * graph_height) as i32;
+                    let y = up_baseline - h;
                     points.push(POINT { x, y });
                 }
-                if !points.is_empty() {
-                    Polyline(hdc, &points);
-                }
+                points.push(POINT { x: self.up_history.len() as i32, y: up_baseline });
+                Polygon(hdc, &points);
 
+                SelectObject(hdc, old_brush);
+                SelectObject(hdc, old_pen);
+                DeleteObject(up_fill_brush);
+                DeleteObject(null_pen);
+
+                // Line (Bright)
+                let up_pen = CreatePen(PS_SOLID, 2, COLORREF(0x00ff55ff)); // Bright Pink
+                let old_pen = SelectObject(hdc, up_pen);
+                let mut line_points = Vec::with_capacity(self.up_history.len());
+                for (i, &val) in self.up_history.iter().enumerate() {
+                    let x = i as i32;
+                    let h = (((val as f64) / (max_up as f64)) * graph_height) as i32;
+                    let y = up_baseline - h;
+                    line_points.push(POINT { x, y });
+                }
+                if !line_points.is_empty() {
+                    Polyline(hdc, &line_points);
+                }
                 SelectObject(hdc, old_pen);
                 DeleteObject(up_pen);
 
-                // Draw Text
+                // --- TEXT ---
                 SetBkMode(hdc, TRANSPARENT);
 
-                // 1. Download Label
-                SetTextColor(hdc, COLORREF(0x00aaaaaa)); // Gray
+                // Fonts
                 let hfont_label = CreateFontW(
                     -12,
                     0,
@@ -184,11 +228,6 @@ impl Popup {
                     FF_DONTCARE.0 as u32,
                     windows::core::PCWSTR::from_raw(wide_string("Segoe UI").as_ptr())
                 );
-                let old_font = SelectObject(hdc, hfont_label);
-                TextOutW(hdc, 16, 12, &wide_string("↓ DOWNLOAD"));
-
-                // 2. Download Value
-                SetTextColor(hdc, COLORREF(0x00ffffff)); // White
                 let hfont_val = CreateFontW(
                     -24,
                     0,
@@ -205,16 +244,24 @@ impl Popup {
                     FF_DONTCARE.0 as u32,
                     windows::core::PCWSTR::from_raw(wide_string("Segoe UI").as_ptr())
                 );
+
+                // Download Text
+                SetTextColor(hdc, COLORREF(0x00aaaaaa)); // Gray
+                let old_font = SelectObject(hdc, hfont_label);
+                TextOutW(hdc, 16, 12, &wide_string("↓ DOWNLOAD"));
+
+                SetTextColor(hdc, COLORREF(0x00ffffff)); // White
                 SelectObject(hdc, hfont_val);
                 TextOutW(hdc, 16, 30, &wide_string(&format_speed_full(down_bps)));
 
-                // 3. Upload Section (Bottom, below graph)
+                // Upload Text
                 SetTextColor(hdc, COLORREF(0x00aaaaaa)); // Gray
                 SelectObject(hdc, hfont_label);
-                TextOutW(hdc, 16, 115, &wide_string("↑ UPLOAD"));
+                TextOutW(hdc, 16, 120, &wide_string("↑ UPLOAD"));
 
                 SetTextColor(hdc, COLORREF(0x00ffffff)); // White
-                TextOutW(hdc, 95, 115, &wide_string(&format_speed_full(up_bps)));
+                SelectObject(hdc, hfont_val);
+                TextOutW(hdc, 16, 138, &wide_string(&format_speed_full(up_bps)));
 
                 SelectObject(hdc, old_font);
                 DeleteObject(hfont_label);
@@ -237,7 +284,7 @@ impl Popup {
                 ).is_ok()
             {
                 let width = 240;
-                let height = 140;
+                let height = 220;
                 let x = rect.right - width - 12;
                 let y = rect.bottom - height - 12;
                 self.window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));

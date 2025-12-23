@@ -153,7 +153,7 @@ impl IconGenerator {
             let mut size_val = SIZE::default();
             GetTextExtentPoint32W(hdc_mem, &w_val, &mut size_val);
             let x_val = (width - size_val.cx) / 2;
-            
+
             // Adjust Y based on font size
             let y_val = match val_str.len() {
                 1 => -5,
